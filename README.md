@@ -1,7 +1,7 @@
 # Phylogeographic analysis of Staphylococcus nepalensis reveals global occurrence of antimicrobial-resistant lineages carrying the intrinsic sal(E) resistance gene*
 
 ## Overview
-This repository contains the complete bioinformatics pipeline used for the comparative genomic analysis of *Staphylococcus nepalensis*, including genome quality assessment, annotation, pangenome analysis, recombination detection, phylogenetics, antimicrobial resistance profiling, virulence factor detection, and gene-specific analyses.
+This repository contains the complete bioinformatics pipeline used for the comparative genomic analysis of Staphylococcus nepalensis, including genome quality assessment, annotation, pangenome analysis, recombination detection, phylogenetics, antimicrobial resistance profiling, virulence factor detection, and gene-specific analyses.
 
 ---
 
@@ -9,53 +9,204 @@ This repository contains the complete bioinformatics pipeline used for the compa
 
 ```
 1. NCBI Genome Download
-   └─> 88 genomes
+   ├─ Tool: NCBI Datasets CLI v18.29.1
+   ├─ Query: Taxon "Staphylococcus nepalensis"
+   └─> 88 genomes downloaded
 
 2. Deduplication by BioSample
-   └─> 46 unique genomes (42 duplicates removed)
+   ├─ Groups genomes by BioSample accession
+   ├─ Keeps highest assembly version per BioSample
+   ├─ Prefers GCF over GCA accessions
+   ├─ 42 duplicates removed
+   └─> 46 unique genomes
 
-3. Quality Filtering (CheckM2 + QUAST)
-   ├─ Completeness >= 95%
-   ├─ Contamination <= 5%
-   ├─ Total contigs <= 100
-   └─ Total N's <= 500
-   └─> 36 high-quality genomes
+3. Quality Filtering (CheckM2 v1.1.0 + QUAST v5.2.0)
+   ├─ Completeness >= 95%         (CheckM2)
+   ├─ Contamination <= 5%         (CheckM2)
+   ├─ Total contigs <= 100        (QUAST)
+   ├─ Total N's <= 500            (QUAST)
+   ├─ Exclude suppressed genomes  (NCBI status)
+   ├─ 10 genomes excluded (low quality or suppressed)
+   └─> 36 high-quality genomes retained
 
 4. Parallel Processing
-   ├─ FastANI (ANI matrix)
-   ├─ Bakta (Annotation)
-   ├─ Panaroo (Pangenome analysis)
-   └─ VirulenceFinder + Abricate VFDB (Virulence detection)
+   ├─ FastANI v1.34
+   │  ├─ All-vs-all ANI matrix (36 × 36)
+   │  ├─ All-vs-reference (GCF_002442935.1 = J11)
+   │  └─> ANI range: 98.99% – 99.xx% (all > 95% species threshold)
+   │
+   ├─ Bakta v1.12.0 (full BaktaDB v6.0)
+   │  ├─ Annotation of all 36 high-quality genomes
+   │  ├─ Output: .gff3, .gbff, .faa, .ffn, .tsv per genome
+   │  └─> Used as input for Panaroo and AMRFinderPlus
+   │
+   ├─ Panaroo v1.3.4
+   │  ├─ Input: 36 annotated .gff3 files from Bakta
+   │  ├─ Mode: strict clean-mode
+   │  ├─ Core threshold: 98% (≥98% of isolates)
+   │  ├─ Core genes:       2,348
+   │  ├─ Soft core genes:     40
+   │  ├─ Shell genes:         485
+   │  ├─ Cloud genes:       1,880
+   │  ├─ Total pangenome:   4,753
+   │  ├─ Pangenome type:    Open
+   │  └─> core_gene_alignment_filtered.aln → input for Gubbins
+   │
+   └─ VirulenceFinder + Abricate v(VFDB)
+      ├─ Databases: s.aureus_toxin, s.aureus_exoenzyme,
+      │             s.aureus_hostimm, VFDB
+      ├─ Identity threshold: ≥90% (VirulenceFinder), ≥80% (Abricate)
+      ├─ Coverage threshold: ≥60%
+      └─> No virulence genes detected in any of 36 genomes
 
 5. AMR Analysis
-   ├─ AMRFinderPlus + CARD
-   ├─ sal(E) gene analysis (Core resistome: 100% genomes)
-   │  ├─ ROTIFER (Rapid Open-source Tools and Infrastructure
-   │  │           for Data Exploration and Research)
-   │  │  └─ Extract nucleotide sequences flanking sal(E)
-   │  │  └─ Determine genetic context and organization
+   ├─ AMRFinderPlus v4.2.7 (DB: 2026-05-15.1)
+   │  ├─ Organism: Staphylococcus aureus
+   │  ├─ Flag: --plus (enables stress and heavy metal gene detection)
+   │  ├─ Input: .faa protein files from Bakta
    │  │
-   │  └─ Pfam database annotation
-   │     └─ Annotate flanking sequences and coding regions
+   │  ├─ Core resistome (100% genomes):
+   │  │  ├─ sal(E)  -- Lincosamide/Pleuromutilin/Streptogramin A
+   │  │
+   │  ├─ Accessory AMR genes:
+   │  │  ├─ fosB/fosB4          21/36 (58.3%) -- Fosfomycin
+   │  │  ├─ tet(K)               9/36 (25.0%) -- Tetracycline
+   │  │  ├─ mph(C)               6/36 (16.7%) -- Macrolide
+   │  │  ├─ qacG                 5/36 (13.9%) -- Quaternary ammonium (biocide)
+   │  │  ├─ str                  4/36 (11.1%) -- Aminoglycoside
+   │  │  ├─ lnu(A)/lnu(A)'       3/36  (8.3%) -- Lincosamide
+   │  │  ├─ catA                 3/36  (8.3%) -- Phenicol
+   │  │  ├─ aac(6')-Ie/aph(2'') 2/36  (5.6%) -- Aminoglycoside
+   │  │  ├─ mecA/mecI/mecR1      2/36  (5.6%) -- Beta-lactam/MRSA
+   │  │  ├─ dfrE                 2/36  (5.6%) -- Trimethoprim
+   │  │  ├─ erm(B)               2/36  (5.6%) -- Macrolide
+   │  │  ├─ dfrG                 1/36  (2.8%) -- Trimethoprim
+   │  │  └─ blaI/blaPC1/blaR1    1/36  (2.8%) -- Beta-lactam regulators
+   │  │
+   │  └─ Heavy metal & stress resistance genes (via --plus flag):
+   │     ├─ arsR/arsB/arsC  -- Arsenic resistance operon (widely distributed)
+   │     ├─ cadD             -- Cadmium tolerance
+   │     ├─ mco              -- Copper tolerance / oxidative stress
+   │     └─ merA/merB/merT   -- Mercury resistance operon
    │
-   └─> Accessory resistance genes (fosB 64%, tet(K) 25%, 
-                                   mph(C) 17%, mecA 6%)
+   ├─ RGI/CARD (DB v3.2.7)
+   │  ├─ Input: .faa protein files from Bakta
+   │  ├─ Reporting: Perfect and Strict hits only
+   │  └─> Confirmed: sal(E), tet(K), mecA, lnu(A), mph(C), qacG
+   │
+   ├─ PlasmidFinder v2.2.0 (DB: 2024-01-24)
+   │  ├─ Input: .fna genome assemblies
+   │  ├─ Identity threshold: >=90%
+   │  ├─ Coverage threshold: >=60%
+   │  └─ Plasmid replicons detected:
+   │     ├─ rep7a    -- Most prevalent; South Korea, Brazil, UK, Jersey, Vietnam, Australia
+   │     ├─ rep7b    -- Restricted to Vietnamese clinical strains (SDH.B1, SDH.B3)
+   │     ├─ rep19c   -- Associated with lnu(A) carriage
+   │     └─ rep21    -- Broad distribution; associated with lnu(A)
+   │
+   └─ sal(E) gene analysis
+      ├─ ROTIFER v1.0
+      │  ├─ Extract sal(E) sequences from all 36 genomes
+      │  ├─ Extract ~2 kb flanking regions on each side
+      │  └─> 36 sal(E)-containing sequences with flanking context
+      │
+      ├─ Pfam database annotation (v35.0)
+      │  ├─ Annotate flanking ORFs with conserved domains
+      │  ├─ Upstream genes:   iscS/nifS, mnmA, TPR proteins, recD2
+      │  ├─ Downstream genes: alaS, ruvX, aspS, ssrS (6S RNA)
+      │  └─> Conserved synteny across all 36 genomes -- single ancestral acquisition
+      │
+      ├─ MAFFT v7.525 (multiple sequence alignment)
+      │  ├─ 36 sal(E) protein sequences aligned
+      │  ├─ 543 amino acid positions
+      │  ├─ Mean amino acid identity: >92%
+      │  ├─ 531 constant sites (97.8%)
+      │  └─> 7 amino acid substitutions + 2 deletions across dataset
+      │     at positions: Cys179, His229, Arg312, His386,
+      │     His431, Asp450, Ile473 + deletions at 60 and 505
+      │
+      ├─ AlphaFold3 (web server: https://alphafoldserver.com)
+      │  ├─ In silico structural prediction of Sal(E)
+      │  ├─ pTM = 0.8 (high confidence)
+      │  ├─ Structurally identical to Sal(B) cryo-EM structure
+      │  └─> Supports canonical ABC-F fold and ribosomal target-protection mechanism
+      │
+      └─ IQ-TREE v3.1.2 (gene-specific phylogeny)
+         ├─ Input: sal_E_aligned.faa (36 sequences, 543 aa)
+         ├─ Model: Q.YEAST (selected by ModelFinder)
+         ├─ Bootstrap: 1,000 UFBoot
+         ├─ Constant sites: 531/543 (97.8%)
+         ├─ Parsimony-informative sites: 3
+         └─> Highly conserved gene tree consistent with
+             single ancestral acquisition and strict vertical inheritance
 
 6. Core Genome Analysis
-   ├─ Core gene alignment from Panaroo
-   ├─ Gubbins (Recombination detection)
-   ├─ ClonalFrameML (Recombination parameters)
-   └─> 32,454 total SNPs
+   ├─ Input: core_gene_alignment_filtered.aln from Panaroo
+   │         (2,348 core genes; 1,677,386 total positions)
+   │
+   ├─ Gubbins v3.4.2
+   │  ├─ Recombination detection and masking
+   │  ├─ Outgroup: GCF_002442935.1 (J11 reference strain)
+   │  ├─ Tree builder: FastTree
+   │  ├─ Total SNPs:              32,454
+   │  ├─ SNPs in recombination:    1,908  (5.88%)
+   │  ├─ Recombination blocks:       211
+   │  ├─ Mean r/m per branch:       0.100
+   │  ├─ Mean rho/theta:            0.015
+   │  └─> nepalensis.filtered_polymorphic_sites.fasta → input for IQ-TREE
+   │
+   └─ ClonalFrameML v1.20
+      ├─ Input: Gubbins final tree + core alignment
+      ├─ emsim: 100 bootstrap simulations
+      ├─ R/theta:   3.97 × 10⁻⁵
+      ├─ delta:     97.58 bp  (mean recombinant tract length)
+      ├─ nu:        2.09 × 10⁻⁴  (mean import divergence)
+      ├─ r/m:       8.09 × 10⁻⁷  (= R/theta × delta × nu)
+      └─> Confirms predominantly clonal population structure
 
 7. Phylogenetic Inference
-   ├─ SNP-sites (Extract SNP-only alignment)
-   ├─ SNP-dists (Pairwise distance matrix)
-   └─ IQ-TREE (ML phylogeny: GTR+G, 1000 ultrafast bootstrap)
-      └─> 20,043 SNP positions used
+   ├─ SNP-sites v2.5.1
+   │  ├─ Input: Gubbins filtered alignment (1,677,386 positions)
+   │  ├─ Extracts variable positions only
+   │  └─> 20,043 SNP positions retained
+   │
+   ├─ SNP-dists v0.9.0
+   │  ├─ Input: Gubbins filtered alignment
+   │  └─> 36 × 36 pairwise SNP distance matrix
+   │     ├─ COLB vs AM1:                    1 cgSNP (clonal)
+   │     ├─ COLB/AM1 vs Korean strains:  ≥1,648 cgSNPs
+   │     └─ COLB/AM1 vs all others:      ≥3,491 cgSNPs
+   │
+   └─ IQ-TREE v3.1.2
+      ├─ Input: nepalensis.filtered_polymorphic_sites.fasta
+      │         (1,677,386 positions; 20,043 variable; 8,739 parsimony-informative)
+      ├─ Model: GTR+G (fixed)
+      ├─ Constant site correction: -fconst 590159,246851,316673,503660
+      ├─ Bootstrap: 1,000 ultrafast (UFBoot2)
+      ├─ Best log-likelihood: -2,471,604.131
+      └─> nepalensis.treefile → visualized in iTOL v6
 
 8. Output & Results
-   └─> Comprehensive phylogenetic trees, ANI matrices, AMR profiles
-       sal(E) genetic context documentation
+   ├─ Phylogenetic trees
+   │  ├─ nepalensis.treefile         (IQ-TREE ML tree -- Figure 1B)
+   │  ├─ nepalensis.final_tree.tre   (Gubbins recombination-corrected -- Figure 2A)
+   │  └─ sal_E.treefile              (sal(E) gene tree -- Figure 3)
+   │
+   ├─ Distance matrices
+   │  ├─ nepalensis.snp_distance_matrix.tsv  (cgSNP pairwise)
+   │  └─ fastani_results.txt.matrix          (ANI all-vs-all)
+   │
+   ├─ AMR profiles
+   │  ├─ nepalensis_complete_amr_table_v2.csv  (complete metadata + AMR)
+   │  └─ recombination_summary.csv             (Gubbins + ClonalFrameML)
+   │
+   └─ sal(E) genetic context
+      ├─ Conserved synteny documented across all 36 genomes
+      ├─ Upstream:   iscS/nifS -> mnmA -> TPR -> recD2
+      ├─ Downstream: alaS -> ruvX -> aspS -> ssrS
+      └─ AlphaFold3 structural model (pTM = 0.8)
+         consistent with ABC-F ribosomal target-protection mechanism
+
 ```
 
 ---
@@ -63,42 +214,74 @@ This repository contains the complete bioinformatics pipeline used for the compa
 ## Requirements
 
 ### Software
+
 All tools are managed via conda/mamba environments:
 
 ```bash
+# Genome download
 mamba create -n download        -c bioconda ncbi-datasets-cli
+
+# Quality assessment
 mamba create -n checkm2         -c bioconda checkm2
 mamba create -n quast           -c bioconda quast=5.2.0
+
+# Genome annotation
 mamba create -n bakta           -c bioconda bakta=1.12.0
+
+# ANI analysis
 mamba create -n fastani         -c bioconda fastani
+
+# Pan-genome analysis
 mamba create -n panaroo         -c bioconda panaroo
+
+# Recombination detection and parameters
 mamba create -n gubbins         -c bioconda gubbins
 mamba create -n clonalframe     -c bioconda clonalframeml
+
+# SNP extraction and distances
 mamba create -n snpsites        -c bioconda snp-sites snp-dists
+
+# Phylogenetic inference
 mamba create -n iqtree          -c bioconda iqtree
+
+# AMR analysis (--plus flag enables heavy metal / stress gene detection)
 mamba create -n amrfinder       -c bioconda ncbi-amrfinderplus
 mamba create -n card_new        -c bioconda rgi
+
+# Plasmid replicon typing
+mamba create -n plasmidfinder   -c bioconda plasmidfinder
+
+# Virulence detection
 mamba create -n abricate        -c bioconda abricate
 mamba create -n virulencefinder -c bioconda virulencefinder
+
+# sal(E) genetic context and structural analysis
 mamba create -n alignment       -c bioconda mafft iqtree
 mamba create -n rotifer         -c bioconda rotifer
+
+# Note: AlphaFold3 accessed via web server https://alphafoldserver.com
+# No local installation required
 ```
 
 ### Databases
-| Database | Version | Path |
-|---|---|---|
-| Bakta full DB | v6.0 (2025-02-24) | `/databases/bakta_db/db` |
-| CheckM2 | 2026-05-15.1 | `/databases/CheckM2_database/uniref100.KO.1.dmnd` |
-| AMRFinderPlus | 2026-05-15.1 | auto-managed |
-| CARD | 3.2.7 | `/databases/card/card.json` |
-| VirulenceFinder DB | - | `/databases/virulencefinder_db` |
-| Pfam | v35.0 | auto-managed / `/databases/pfam/Pfam-A.hmm` |
+
+| Database           | Version           | Path                                              |
+| ------------------ | ----------------- | ------------------------------------------------- |
+| Bakta full DB      | v6.0 (2025-02-24) | `/databases/bakta_db/db`                          |
+| CheckM2            | 2026-05-15.1      | `/databases/CheckM2_database/uniref100.KO.1.dmnd` |
+| AMRFinderPlus      | 2026-05-15.1      | auto-managed                                      |
+| CARD               | 3.2.7             | `/databases/card/card.json`                       |
+| PlasmidFinder DB   | 2024-01-24        | `/databases/plasmidfinder_db`                     |
+| VirulenceFinder DB | v2.0.1            | `/databases/virulencefinder_db`                   |
+| Pfam               | v35.0             | auto-managed / `/databases/pfam/Pfam-A.hmm`       |
+
 
 ---
 
 ## Step-by-Step Pipeline
 
 ### Step 1 — Download Genomes
+
 ```bash
 conda activate download
 datasets download genome taxon "Staphylococcus nepalensis"
@@ -107,6 +290,7 @@ unzip ncbi_dataset.zip -d nepalensis_ncbi_genomes
 ```
 
 ### Step 2 — Deduplication
+
 ```bash
 # Run from: nepalensis_ncbi_genomes/ncbi_dataset/data/
 # Groups by BioSample, keeps highest version, prefers GCF over GCA
@@ -122,6 +306,7 @@ done < /tmp/assembly_biosample.txt
 ```
 
 ### Step 3 — Export Unique FASTAs
+
 ```bash
 mkdir -p exported_fastas
 jq -r '.accession' assembly_data_report.jsonl | while read acc; do
@@ -132,6 +317,7 @@ done
 ```
 
 ### Step 4 — Create Metadata Table
+
 ```bash
 # Extracts: accession, biosample, taxid, organism, strain,
 # year, country, isolation_source, assembly_level from NCBI JSON
@@ -139,6 +325,7 @@ jq -r '... | @csv' assembly_data_report.jsonl > genome_tracking.csv
 ```
 
 ### Step 5 — Quality Assessment
+
 ```bash
 # CheckM2
 conda activate checkm2
@@ -157,6 +344,7 @@ quast exported_fastas/*.fna \
 ```
 
 ### Step 6 — Quality Filtering (Python)
+
 ```python
 # filter_genomes.py
 # Thresholds:
@@ -186,6 +374,7 @@ df[~mask].to_csv("nepalensis_lowquality.csv", index=False)
 ```
 
 ### Step 7 — Genome Annotation (Bakta)
+
 ```bash
 conda activate bakta
 bakta_db --setdblocation /databases/bakta_db/db
@@ -210,6 +399,7 @@ parallel -j 3 annotate_genome ::: hq_fastas/*.fna
 ```
 
 ### Step 8 — Average Nucleotide Identity (FastANI)
+
 ```bash
 conda activate fastani
 
@@ -232,6 +422,7 @@ fastANI \
 ```
 
 ### Step 9 — Pangenome Analysis (Panaroo)
+
 ```bash
 conda activate panaroo
 
@@ -253,6 +444,7 @@ panaroo \
 ```
 
 ### Step 10 — Recombination Detection (Gubbins)
+
 ```bash
 conda activate gubbins
 
@@ -275,6 +467,7 @@ run_gubbins.py \
 ```
 
 ### Step 11 — Recombination Parameters (ClonalFrameML)
+
 ```bash
 conda activate clonalframe
 
@@ -296,6 +489,7 @@ ClonalFrameML \
 ```
 
 ### Step 12 — SNP Extraction (SNP-sites)
+
 ```bash
 conda activate snpsites
 
@@ -311,10 +505,11 @@ snp-sites -C panaroo_results/core_gene_alignment_filtered.aln
 ```
 
 ### Step 13 — Phylogenetic Analysis (IQ-TREE)
+
 ```bash
 conda activate iqtree
 
-# Input: Gubbins recombination-filtered SNP alignment (20,043 SNPs)
+# Input: Gubbins recombination-filtered alignment (1,677,386 positions)
 # Constant sites correction applied with -fconst
 iqtree \
     -s gubbins_results/nepalensis.filtered_polymorphic_sites.fasta \
@@ -325,15 +520,18 @@ iqtree \
     -pre iqtree_results/nepalensis
 
 # Results:
-#   Input:               Gubbins recombination-filtered SNPs
-#   SNP positions:       20,043
+#   Input:               Gubbins recombination-filtered alignment
+#   Total positions:     1,677,386
+#   Variable sites:         20,043
+#   Parsimony-informative:   8,739
 #   Constant sites:      1,657,343 (corrected via -fconst)
-#   Bootstrap:           1,000 UFBoot
+#   Bootstrap:           1,000 UFBoot2
 #   Model:               GTR+G
 #   Best log-likelihood: -2,471,604.131
 ```
 
 ### Step 14 — Pairwise SNP Distance Matrix (SNP-dists)
+
 ```bash
 conda activate snpsites
 
@@ -342,6 +540,10 @@ snp-dists \
     > gubbins_results/nepalensis.snp_distance_matrix.tsv
 
 # Result: 36x36 pairwise SNP distance matrix
+# Key distances:
+#   COLB vs AM1:                   1 cgSNP (clonal)
+#   COLB/AM1 vs Korean strains: >=1,648 cgSNPs
+#   COLB/AM1 vs all others:     >=3,491 cgSNPs
 # Identical genome pairs detected:
 #   GCF_900458695.1 = GCF_014635045.1
 #   GCF_051590305.1 = GCF_051590285.1
@@ -349,7 +551,8 @@ snp-dists \
 
 ### Step 15 — Antimicrobial Resistance Analysis
 
-#### AMRFinderPlus & CARD
+#### AMRFinderPlus
+
 ```bash
 conda activate amrfinder
 
@@ -360,13 +563,39 @@ for faa in bakta_results/*/*.faa; do
     amrfinder \
         -p "$faa" \
         --organism Staphylococcus_aureus \
+        --plus \
         --output amrfinder_results/${accession}.tsv \
         --threads 4
 done
 
-# Core resistome (100% genomes): sal(E)
-# Accessory: fosB (64%), tet(K) (25%), mph(C) (17%), mecA (6%)
+# Note: --plus flag required to detect heavy metal and stress resistance genes
+
+# Core resistome (100% genomes):
+#   sal(E)  -- Lincosamide/Pleuromutilin/Streptogramin A
+#
+# Accessory AMR genes:
+#   fosB/fosB4         21/36 (58.3%) -- Fosfomycin
+#   tet(K)              9/36 (25.0%) -- Tetracycline
+#   mph(C)              6/36 (16.7%) -- Macrolide
+#   qacG                5/36 (13.9%) -- Quaternary ammonium (biocide)
+#   str                 4/36 (11.1%) -- Aminoglycoside
+#   lnu(A)/lnu(A)'      3/36  (8.3%) -- Lincosamide
+#   catA                3/36  (8.3%) -- Phenicol
+#   aac(6')-Ie/aph(2'') 2/36  (5.6%) -- Aminoglycoside
+#   mecA/mecI/mecR1     2/36  (5.6%) -- Beta-lactam/MRSA
+#   dfrE                2/36  (5.6%) -- Trimethoprim
+#   erm(B)              2/36  (5.6%) -- Macrolide
+#   dfrG                1/36  (2.8%) -- Trimethoprim
+#   blaI/blaPC1/blaR1   1/36  (2.8%) -- Beta-lactam regulators
+#
+# Heavy metal & stress resistance genes (detected via --plus flag):
+#   arsR/arsB/arsC  -- Arsenic resistance operon (widely distributed)
+#   cadD            -- Cadmium tolerance
+#   mco             -- Copper tolerance / oxidative stress
+#   merA/merB/merT  -- Mercury resistance operon
 ```
+
+#### CARD (RGI)
 
 ```bash
 conda activate card_new
@@ -386,19 +615,45 @@ for faa in bakta_results/*/*.faa; do
         -n 4
 done
 # Reporting: Perfect and Strict hits only
+# Confirmed: sal(E), tet(K), mecA, lnu(A), mph(C), qacG
+```
+
+#### Plasmid Replicon Typing (PlasmidFinder)
+
+```bash
+conda activate plasmidfinder
+
+# Download database if not available
+cd /databases/plasmidfinder_db
+git clone https://bitbucket.org/genomicepidemiology/plasmidfinder_db.git .
+
+mkdir -p plasmidfinder_results
+for fna in hq_fastas/*.fna; do
+    accession=$(basename "$fna" .fna)
+    mkdir -p plasmidfinder_results/${accession}
+    plasmidfinder.py \
+        -i "$fna" \
+        -o plasmidfinder_results/${accession} \
+        -p /databases/plasmidfinder_db \
+        -l 0.60 \
+        -t 0.90
+done
+
+# Plasmid replicons detected:
+#   rep7a    -- Most prevalent; South Korea, Brazil, UK, Jersey, Vietnam, Australia
+#   rep7b    -- Restricted to Vietnamese clinical strains (SDH.B1, SDH.B3)
+#   rep19c   -- Associated with lnu(A) carriage
+#   rep21    -- Broad distribution; associated with lnu(A)
 ```
 
 #### sal(E) Genetic Context Analysis
 
 ##### Extract sal(E) Flanking Sequences (ROTIFER)
+
 ```bash
 conda activate rotifer
 
 mkdir -p gene_extraction/sale_context
-
-# Use ROTIFER to extract sal(E) and flanking sequences from all 36 genomes
-# ROTIFER (Rapid Open-source Tools and Infrastructure for Data Exploration and Research)
-# Reference: https://github.com/leepbioinfo/rotifer
 
 rotifer extract \
     --input hq_fastas/ \
@@ -411,39 +666,35 @@ rotifer extract \
 ```
 
 ##### Annotate Flanking Sequences with Pfam
+
 ```bash
 conda activate alignment
 
 mkdir -p gene_extraction/sale_context/pfam_annotations
-
-# Translate flanking sequences (if needed) or use nucleotide hmmscan
-# against Pfam database to identify conserved domains in vicinity of sal(E)
 
 hmmscan \
     --domtblout gene_extraction/sale_context/pfam_annotations/flanking.domtbl \
     /databases/pfam/Pfam-A.hmm \
     gene_extraction/sale_context/*_flanking.faa
 
-# Alternative: Extract ORFs from flanking regions, translate, and annotate
 python3 extract_orfs_flanking.py \
     gene_extraction/sale_context/ \
     gene_extraction/sale_context/pfam_annotations/
 
 # Results:
-#   - Identification of genetic organization (operons, adjacent genes)
-#   - Pfam domain annotations for neighboring coding sequences
-#   - Assessment of sal(E) genomic context conservation
+#   Upstream genes:   iscS/nifS, mnmA, TPR proteins, recD2
+#   Downstream genes: alaS, ruvX, aspS, ssrS (6S RNA)
+#   Conserved synteny across all 36 genomes
+#   Evidence of single ancestral acquisition
 ```
-
----
 
 ### Step 16 — Virulence Factor Detection
 
 #### VirulenceFinder
+
 ```bash
 conda activate virulencefinder
 
-# Download and index database
 mkdir -p /databases/virulencefinder_db
 cd /databases/virulencefinder_db
 git clone https://bitbucket.org/genomicepidemiology/virulencefinder_db.git .
@@ -464,11 +715,11 @@ for fna in hq_fastas/*.fna; do
         -t 0.9 \
         -x
 done
-
 # Result: No S. aureus virulence genes detected in any genome
 ```
 
 #### Abricate (VFDB)
+
 ```bash
 conda activate abricate
 
@@ -485,6 +736,7 @@ abricate \
 ```
 
 ### Step 17 — Gene-specific Phylogenetic Analysis (sal(E))
+
 ```bash
 # Extract sal(E) sequences from all 36 genomes
 conda activate base
@@ -508,27 +760,29 @@ iqtree \
 #   Total sites:             543 aa
 #   Constant sites:          531 (97.8%)
 #   Parsimony-informative:   3
-#   Conclusion: sal(E) is highly conserved, single ancestral acquisition
+#   Mean amino acid identity: >92%
+#   Conclusion: sal(E) is highly conserved -- single ancestral acquisition
+#               consistent with strict vertical inheritance
 ```
 
 ### Step 18 — Merge All Results (Python)
+
 ```python
 # Scripts available:
 # merge_fastani.py         -- adds FastANI vs reference to high-quality table
-# merge_amr_tables_v2.py   -- adds AMRFinder + CARD results
+# merge_amr_tables_v2.py   -- adds AMRFinder + CARD + PlasmidFinder results
 # recombination_summary.py -- summarizes Gubbins + ClonalFrameML stats
 # copy_hq_fastas.py        -- copies 36 HQ FASTAs to separate folder
 # merge_sale_context.py    -- adds sal(E) genetic context annotations
 ```
 
 ### Step 19 — Transfer Results to Local Machine
+
 ```bash
 # Run from local machine
 mkdir -p /home/johana/Documentos/nepalensis
 
 scp -r zbecerra@davinci.icb.usp.br:/path/to/export_for_johana \
-    /home/johana/Documentos/nepalensis/
-scp -r zbecerra@davinci.icb.usp.br:/path/to/quast_results \
     /home/johana/Documentos/nepalensis/
 scp -r zbecerra@davinci.icb.usp.br:/path/to/gubbins_results \
     /home/johana/Documentos/nepalensis/
@@ -541,6 +795,8 @@ scp -r zbecerra@davinci.icb.usp.br:/path/to/bakta_results \
 scp -r zbecerra@davinci.icb.usp.br:/path/to/amrfinder_results \
     /home/johana/Documentos/nepalensis/
 scp -r zbecerra@davinci.icb.usp.br:/path/to/card_results \
+    /home/johana/Documentos/nepalensis/
+scp -r zbecerra@davinci.icb.usp.br:/path/to/plasmidfinder_results \
     /home/johana/Documentos/nepalensis/
 scp -r zbecerra@davinci.icb.usp.br:/path/to/gene_extraction \
     /home/johana/Documentos/nepalensis/
@@ -590,7 +846,7 @@ projects/nepalensis/
 │   ├── nepalensis.final_tree.tre
 │   ├── nepalensis.recombination_predictions.gff
 │   ├── nepalensis.per_branch_statistics.csv
-│   ├── nepalensis.filtered_polymorphic_sites.fasta  # input for SNP-sites + IQ-TREE
+│   ├── nepalensis.filtered_polymorphic_sites.fasta
 │   ├── nepalensis.snps.aln
 │   └── nepalensis.snp_distance_matrix.tsv
 │
@@ -602,9 +858,9 @@ projects/nepalensis/
 │   └── nepalensis.ML_sequence.fasta
 │
 ├── iqtree_results/
-│   ├── nepalensis.treefile       # ML tree based on Gubbins SNPs
-│   ├── nepalensis.contree        # bootstrap consensus tree
-│   ├── nepalensis.iqtree         # full report
+│   ├── nepalensis.treefile
+│   ├── nepalensis.contree
+│   ├── nepalensis.iqtree
 │   └── nepalensis.mldist
 │
 ├── amrfinder_results/
@@ -614,6 +870,10 @@ projects/nepalensis/
 ├── card_results/
 │   ├── <accession>.txt
 │   └── card_all_genomes.tsv
+│
+├── plasmidfinder_results/              
+│   └── <accession>/
+│       └── results_tab.tsv
 │
 ├── virulencefinder_results/
 │   └── <accession>/
@@ -625,7 +885,7 @@ projects/nepalensis/
 ├── gene_extraction/
 │   ├── sal_E_all.faa
 │   ├── sal_E_aligned.faa
-│   ├── sale_context/                        # ROTIFER extracted context
+│   ├── sale_context/
 │   │   ├── <accession>_sale.fna
 │   │   ├── <accession>_flanking.fna
 │   │   ├── <accession>_flanking.faa
@@ -641,36 +901,39 @@ projects/nepalensis/
 ├── fastani_vs_reference.txt
 └── fastani_genome_list.txt
 ```
-
 ---
 
 ## Key Results Summary
 
-| Analysis | Result |
-|---|---|
-| Total genomes downloaded | 88 |
-| Unique genomes after deduplication | 46 |
-| High-quality genomes | 36 |
-| Core genome size | 2,348 genes |
-| Soft core genes | 40 genes |
-| Shell genes | 485 genes |
-| Cloud genes | 1,880 genes |
-| Total pangenome | 4,753 genes |
-| Pangenome type | Open |
-| Gubbins SNPs (total) | 32,454 |
-| SNPs used for phylogeny (IQ-TREE) | 20,043 |
-| Recombination blocks (Gubbins) | 211 |
-| SNPs from recombination | 1,908 (5.88%) |
-| Gubbins r/m | 0.100 |
-| ClonalFrameML R/theta | 3.97 x 10-5 |
-| ClonalFrameML delta | 97.58 bp |
-| ClonalFrameML nu | 2.09 x 10-4 |
-| ClonalFrameML r/m | 8.09 x 10-7 |
-| Core resistome | sal(E) |
-| Accessory resistance genes | fosB, tet(K), mph(C), mecA |
-| sal(E) conservation | 97.8% (531/543 sites) |
-| sal(E) genetic context | Highly conserved across all genomes |
-| Virulence genes detected | None |
+| Analysis                           | Result                                   |
+| ---------------------------------- | ---------------------------------------- |
+| Total genomes downloaded           | 88                                       |
+| Unique genomes after deduplication | 46                                       |
+| High-quality genomes               | 36                                       |
+| Core genome size                   | 2,348 genes                              |
+| Soft core genes                    | 40 genes                                 |
+| Shell genes                        | 485 genes                                |
+| Cloud genes                        | 1,880 genes                              |
+| Total pangenome                    | 4,753 genes                              |
+| Pangenome type                     | Open                                     |
+| Gubbins SNPs (total)               | 32,454                                   |
+| SNPs used for phylogeny (IQ-TREE)  | 20,043                                   |
+| Recombination blocks (Gubbins)     | 211                                      |
+| SNPs from recombination            | 1,908 (5.88%)                            |
+| Gubbins r/m                        | 0.100                                    |
+| ClonalFrameML R/theta              | 3.97 x 10-5                              |
+| ClonalFrameML delta                | 97.58 bp                                 |
+| ClonalFrameML nu                   | 2.09 x 10-4                              |
+| ClonalFrameML r/m                  | 8.09 x 10-7                              |
+| Core resistome (100% genomes)      | sal(E), arr, bla                         |
+| Most prevalent accessory AMR       | fosB/fosB4 (58.3%), tet(K) (25.0%)       |
+| Heavy metal resistance             | arsR/B/C, cadD, mco, merA/B/T           |
+| Biocide resistance                 | qacG (13.9%) -- clinical isolates only   |
+| Most prevalent plasmid replicon    | rep7a                                    |
+| MDR-associated replicon            | rep7b -- Vietnamese clinical strains only|
+| sal(E) conservation                | 97.8% (531/543 amino acid sites)         |
+| sal(E) genetic context             | Highly conserved across all genomes      |
+| Virulence genes detected           | None                                     |
 
 ---
 
@@ -682,16 +945,16 @@ https://github.com/leepbioinfo/rotifer). Approximately 2 kb regions flanking sal
 both sides were retrieved to determine the genetic organization and evolutionary
 conservation of the locus.
 
-The extracted flanking sequences and their associated nucleotide sequences were annotated
-using the Pfam database to identify conserved protein domains in adjacent coding regions.
-This analysis revealed:
+The extracted flanking sequences were annotated using the Pfam database to identify
+conserved protein domains in adjacent coding regions. This analysis revealed:
 
 - **Genetic organization**: Consistent synteny across all S. nepalensis isolates
-- **Associated genes**: Identification of neighboring genes and their functional domains
+- **Upstream genes**: iscS/nifS -> mnmA -> TPR proteins -> recD2
+- **Downstream genes**: alaS -> ruvX -> aspS -> ssrS (6S RNA)
 - **Evolutionary conservation**: Evidence of single ancestral acquisition with minimal
   subsequent modification
-- **Functional context**: Coordination of sal(E) with neighboring metabolic or regulatory
-  genes
+- **Functional context**: Association with tRNA modification, translation fidelity,
+  and DNA repair pathways
 
 ---
 
@@ -703,9 +966,10 @@ r/m = 3.97e-05 x 97.58 x 2.09e-04
 r/m = 8.09e-07
 
 Interpretation: S. nepalensis is a predominantly clonal species with
-very low recombination rates, consistent with other CoNS species.
-Short recombinant tracts (97.58 bp) and low divergence suggest
-within-species recombination rather than external imports.
+very low recombination rates. Short recombinant tracts (97.58 bp) and
+low import divergence (2.09e-04) suggest within-species recombination
+rather than importation from distantly related organisms, consistent
+with other coagulase-negative staphylococci.
 ```
 
 ---
@@ -713,54 +977,60 @@ within-species recombination rather than external imports.
 ## Phylogenetic Analysis Notes
 
 The maximum likelihood phylogeny was inferred using IQ-TREE v3.1.2 with the GTR+G
-substitution model. The input alignment consisted of recombination-filtered SNPs
-identified by Gubbins (20,043 SNPs from 36 genomes). Constant sites
-(A=590,159; C=246,851; G=316,673; T=503,660) were included for branch length
-correction using the -fconst option. Bootstrap support was assessed with
-1,000 ultrafast bootstrap replicates.
+substitution model. The input alignment consisted of the full recombination-filtered
+core-genome alignment produced by Gubbins (1,677,386 positions; 20,043 variable sites;
+8,739 parsimony-informative sites). Constant sites (A=590,159; C=246,851; G=316,673;
+T=503,660) were corrected using the -fconst option. Bootstrap support was assessed with
+1,000 ultrafast bootstrap replicates (UFBoot2).
 
 ---
 
 ## Virulence Factor Analysis
 
 No virulence genes were detected in any of the 36 S. nepalensis genomes using:
+
 - VirulenceFinder (databases: s.aureus_toxin, s.aureus_exoenzyme, s.aureus_hostimm;
   identity >= 90%, coverage >= 60%)
 - Abricate with VFDB (identity >= 80%, coverage >= 60%)
 
-This confirms the non-pathogenic nature of S. nepalensis and its distinction
-from pathogenic staphylococci such as S. aureus.
+This confirms the non-pathogenic nature of S. nepalensis and its distinction from
+pathogenic staphylococci such as *S. aureus*, consistent with its classification as a
+coagulase-negative commensal species.
 
 ---
 
 ## Software Versions
 
-| Tool | Version | Reference |
-|---|---|---|
-| NCBI Datasets CLI | 18.29.1 | NCBI |
-| CheckM2 | 1.1.0 | Chklovski et al. 2023 |
-| QUAST | 5.2.0 | Gurevich et al. 2013 |
-| Bakta | 1.12.0 | Schwengers et al. 2021 |
-| FastANI | - | Jain et al. 2018 |
-| Panaroo | - | Tonkin-Hill et al. 2020 |
-| Gubbins | - | Croucher et al. 2015 |
-| ClonalFrameML | 1.20 | Didelot & Wilson 2015 |
-| SNP-sites | 2.5.1 | Page et al. 2016 |
-| SNP-dists | 1.2.0 | Seemann 2018 |
-| IQ-TREE | 3.1.2 | Minh et al. 2020 |
-| AMRFinderPlus | 4.2.7 | Feldgarden et al. 2021 |
-| RGI/CARD | - (DB: 3.2.7) | Alcock et al. 2023 |
-| ROTIFER | - | https://github.com/leepbioinfo/rotifer |
-| Pfam | v35.0 | Mistry et al. 2021 |
-| VirulenceFinder | - | Joensen et al. 2014 |
-| Abricate | - | Seemann 2020 |
-| MAFFT | 7.525 | Katoh & Standley 2013 |
+| Tool              | Version       | Reference                                |
+| ----------------- | ------------- | ---------------------------------------- |
+| NCBI Datasets CLI | 18.29.1       | NCBI                                     |
+| CheckM2           | 1.1.0         | Chklovski et al. 2023                    |
+| QUAST             | 5.2.0         | Gurevich et al. 2013                     |
+| Bakta             | 1.12.0        | Schwengers et al. 2021                   |
+| FastANI           | 1.34          | Jain et al. 2018                         |
+| Panaroo           | 1.3.4         | Tonkin-Hill et al. 2020                  |
+| Gubbins           | 3.4.2         | Croucher et al. 2015                     |
+| ClonalFrameML     | 1.20          | Didelot & Wilson 2015                    |
+| SNP-sites         | 2.5.1         | Page et al. 2016                         |
+| SNP-dists         | 0.9.0         | Seemann 2018                             |
+| IQ-TREE           | 3.1.2         | Minh et al. 2020                         |
+| AMRFinderPlus     | 4.2.7         | Feldgarden et al. 2021                   |
+| RGI/CARD          | (DB: 3.2.7)   | Alcock et al. 2023                       |
+| PlasmidFinder     | 2.2.0         | Carattoli et al. 2014                    |
+| AlphaFold3        | 3             | Abramson et al. 2024                     |
+| ROTIFER           | v1.0          | https://github.com/leepbioinfo/rotifer   |
+| Pfam              | v35.0         | Mistry et al. 2021                       |
+| VirulenceFinder   | v2.0.1        | Joensen et al. 2014                      |
+| Abricate          | v1.0.1        | Seemann 2020                             |
+| MAFFT             | 7.525         | Katoh & Standley 2013                    |
 
 ---
 
 ## References
 
+- Abramson et al. (2024) AlphaFold3. Nature
 - Alcock et al. (2023) CARD 2023. Nucleic Acids Research
+- Carattoli et al. (2014) PlasmidFinder. Antimicrobial Agents and Chemotherapy
 - Chklovski et al. (2023) CheckM2. Nature Methods
 - Croucher et al. (2015) Gubbins. Nucleic Acids Research
 - Didelot & Wilson (2015) ClonalFrameML. PLoS Computational Biology
@@ -781,9 +1051,11 @@ from pathogenic staphylococci such as S. aureus.
 
 If you use this pipeline please cite:
 
-> Becerra et al. (2026). Phylogeographic analysis of Staphylococcus nepalensis reveals global occurrence of antimicrobial-resistant lineages carrying the intrinsic sal(E) resistance gene.
+> Becerra et al. (2026). Phylogeographic analysis of *Staphylococcus nepalensis* reveals global occurrence of antimicrobial-resistant lineages carrying the intrinsic sal(E) resistance gene.
 
 ---
 
 ## License
+
 MIT License
+
