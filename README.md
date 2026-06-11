@@ -1,4 +1,4 @@
-# Phylogeographic analysis of Staphylococcus nepalensis reveals global occurrence of antimicrobial-resistant lineages carrying the intrinsic sal(E) resistance gene*
+# Phylogeographic analysis of Staphylococcus nepalensis reveals global occurrence of antimicrobial-resistant lineages carrying the intrinsic sal(E) resistance gene
 
 ## Overview
 This repository contains the complete bioinformatics pipeline used for the comparative genomic analysis of Staphylococcus nepalensis, including genome quality assessment, annotation, pangenome analysis, recombination detection, phylogenetics, antimicrobial resistance profiling, virulence factor detection, and gene-specific analyses.
