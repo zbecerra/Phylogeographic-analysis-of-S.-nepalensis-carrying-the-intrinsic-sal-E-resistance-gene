@@ -74,7 +74,7 @@ This repository contains the complete bioinformatics pipeline used for the compa
    │  ├─ Input: .faa protein files from Bakta
    │  │
    │  ├─ Core resistome (100% genomes):
-   │  │  ├─ sal(E)  -- Lincosamide/Pleuromutilin/Streptogramin A
+   │  │  └─ sal(E)  -- Lincosamide/Pleuromutilin/Streptogramin A
    │  │
    │  ├─ Accessory AMR genes:
    │  │  ├─ fosB/fosB4          21/36 (58.3%) -- Fosfomycin
