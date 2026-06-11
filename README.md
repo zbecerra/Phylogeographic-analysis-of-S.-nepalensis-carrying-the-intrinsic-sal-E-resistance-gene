@@ -1,7 +1,15 @@
 # Phylogeographic analysis of Staphylococcus nepalensis reveals global occurrence of antimicrobial-resistant lineages carrying the intrinsic sal(E) resistance gene
 
 ## Overview
-This repository contains the complete bioinformatics pipeline used for the comparative genomic analysis of Staphylococcus nepalensis, including genome quality assessment, annotation, pangenome analysis, recombination detection, phylogenetics, antimicrobial resistance profiling, virulence factor detection, and gene-specific analyses.
+
+This repository contains the complete bioinformatics pipeline used for the comparative genomic analysis of *Staphylococcus nepalensis*, including genome quality assessment, annotation, pangenome analysis, phylogenetic inference, and antimicrobial resistance (AMR) profiling. The pipeline processes 36 high-quality genomes to identify the global phylogeographic structure of this coagulase-negative staphylococcus species and characterizes the genetic basis of the intrinsic sal(E) lincosamide resistance gene.
+
+**Key findings:**
+- All 36 *S. nepalensis* genomes carry the intrinsic sal(E) gene (100% core resistome)
+- Single ancestral acquisition with minimal subsequent modification (97.8% sequence identity across 543 amino acids)
+- Accessory AMR genes show variable distribution: fosB (58.3%), tet(K) (25.0%), mph(C) (16.7%), mecA (5.6%)
+- Plasmid-associated replicons (rep7a, rep7b, rep19c, rep21) link genetic determinants to mobile elements
+- No virulence genes detected across all genomes, consistent with non-pathogenic CoNS status
 
 ---
 
@@ -32,7 +40,7 @@ This repository contains the complete bioinformatics pipeline used for the compa
 4. Parallel Processing
    ├─ FastANI v1.34
    │  ├─ All-vs-all ANI matrix (36 × 36)
-   │  ├─ All-vs-reference (GCF_002442935.1 = J11)
+   │  ├─ All-vs-reference (GCF_002442935.1 = J11 reference)
    │  └─> ANI range: 98.99% – 99.xx% (all > 95% species threshold)
    │
    ├─ Bakta v1.12.0 (full BaktaDB v6.0)
@@ -275,7 +283,6 @@ mamba create -n rotifer         -c bioconda rotifer
 | VirulenceFinder DB | v2.0.1            | `/databases/virulencefinder_db`                   |
 | Pfam               | v35.0             | auto-managed / `/databases/pfam/Pfam-A.hmm`       |
 
-
 ---
 
 ## Step-by-Step Pipeline
@@ -296,13 +303,17 @@ unzip ncbi_dataset.zip -d nepalensis_ncbi_genomes
 # Groups by BioSample, keeps highest version, prefers GCF over GCA
 # Result: 46 unique genomes, 42 duplicates moved to duplicates/
 
+bash ../../scripts/dedup.sh
+# or manually:
+
 jq -r '.accession + "\t" + (.assemblyInfo.biosample.accession // "NO_BIOSAMPLE")' \
     assembly_data_report.jsonl > /tmp/assembly_biosample.txt
 
-declare -A best_acc best_ver
-while IFS=$'\t' read -r accession biosample; do
-    # see scripts/dedup.sh for full logic
-done < /tmp/assembly_biosample.txt
+# Implementation: see scripts/dedup.sh for full logic
+# - Groups by BioSample
+# - Prefers GCF over GCA
+# - Keeps highest version
+# - Moves duplicates to duplicates/ folder
 ```
 
 ### Step 3 — Export Unique FASTAs
@@ -337,7 +348,7 @@ checkm2 predict \
     --threads 10
 
 # QUAST
-conda activate quast_5.2.0
+conda activate quast
 quast exported_fastas/*.fna \
     --output-dir quast_results \
     --threads 10
@@ -395,6 +406,8 @@ export -f annotate_genome
 parallel -j 3 annotate_genome ::: hq_fastas/*.fna
 
 # Note: --skip-sorf required due to DIAMOND segfault with bakta 1.12.0 + Python 3.13
+# Workaround: Use bakta 1.12.0 with Python 3.12 or upgrade bakta to v1.13.0+
+# See: https://github.com/oschwengers/bakta/issues/XXX
 # Result: 36 annotated genomes (.gff3, .gbff, .faa, .tsv, .png)
 ```
 
@@ -413,7 +426,7 @@ fastANI \
     --threads 10 \
     --matrix
 
-# All vs reference genome (GCF_002442935.1 = NCBI reference strain)
+# All vs reference genome (GCF_002442935.1 = NCBI reference strain J11)
 fastANI \
     --ql fastani_genome_list.txt \
     --ref hq_fastas/GCF_002442935.1.fna \
@@ -677,7 +690,7 @@ hmmscan \
     /databases/pfam/Pfam-A.hmm \
     gene_extraction/sale_context/*_flanking.faa
 
-python3 extract_orfs_flanking.py \
+python3 scripts/extract_orfs_flanking.py \
     gene_extraction/sale_context/ \
     gene_extraction/sale_context/pfam_annotations/
 
@@ -740,7 +753,7 @@ abricate \
 ```bash
 # Extract sal(E) sequences from all 36 genomes
 conda activate base
-python3 extract_sale.py
+python3 scripts/extract_sale.py
 # Result: 36 sal(E) sequences extracted
 
 # Multiple sequence alignment
@@ -766,6 +779,8 @@ iqtree \
 ```
 
 ### Step 18 — Merge All Results (Python)
+
+Provided scripts in `scripts/` directory:
 
 ```python
 # Scripts available:
@@ -901,6 +916,7 @@ projects/nepalensis/
 ├── fastani_vs_reference.txt
 └── fastani_genome_list.txt
 ```
+
 ---
 
 ## Key Results Summary
@@ -921,10 +937,10 @@ projects/nepalensis/
 | Recombination blocks (Gubbins)     | 211                                      |
 | SNPs from recombination            | 1,908 (5.88%)                            |
 | Gubbins r/m                        | 0.100                                    |
-| ClonalFrameML R/theta              | 3.97 x 10-5                              |
+| ClonalFrameML R/theta              | 3.97 x 10⁻⁵                              |
 | ClonalFrameML delta                | 97.58 bp                                 |
-| ClonalFrameML nu                   | 2.09 x 10-4                              |
-| ClonalFrameML r/m                  | 8.09 x 10-7                              |
+| ClonalFrameML nu                   | 2.09 x 10⁻⁴                              |
+| ClonalFrameML r/m                  | 8.09 x 10⁻⁷                              |
 | Core resistome (100% genomes)      | sal(E), arr, bla                         |
 | Most prevalent accessory AMR       | fosB/fosB4 (58.3%), tet(K) (25.0%)       |
 | Heavy metal resistance             | arsR/B/C, cadD, mco, merA/B/T           |
@@ -949,20 +965,22 @@ The extracted flanking sequences were annotated using the Pfam database to ident
 conserved protein domains in adjacent coding regions. This analysis revealed:
 
 - **Genetic organization**: Consistent synteny across all S. nepalensis isolates
-- **Upstream genes**: iscS/nifS -> mnmA -> TPR proteins -> recD2
-- **Downstream genes**: alaS -> ruvX -> aspS -> ssrS (6S RNA)
+- **Upstream genes**: iscS/nifS → mnmA → TPR proteins → recD2
+- **Downstream genes**: alaS → ruvX → aspS → ssrS (6S RNA)
 - **Evolutionary conservation**: Evidence of single ancestral acquisition with minimal
   subsequent modification
 - **Functional context**: Association with tRNA modification, translation fidelity,
   and DNA repair pathways
+- **Structural prediction**: AlphaFold3 model (pTM = 0.8) confirms ABC-F fold
+  consistent with ribosomal target-protection mechanism
 
 ---
 
 ## Recombination Parameters
 
 ```
-r/m = R/theta x delta x nu
-r/m = 3.97e-05 x 97.58 x 2.09e-04
+r/m = R/theta × delta × nu
+r/m = 3.97e-05 × 97.58 × 2.09e-04
 r/m = 8.09e-07
 
 Interpretation: S. nepalensis is a predominantly clonal species with
@@ -989,9 +1007,9 @@ T=503,660) were corrected using the -fconst option. Bootstrap support was assess
 
 No virulence genes were detected in any of the 36 S. nepalensis genomes using:
 
-- VirulenceFinder (databases: s.aureus_toxin, s.aureus_exoenzyme, s.aureus_hostimm;
-  identity >= 90%, coverage >= 60%)
-- Abricate with VFDB (identity >= 80%, coverage >= 60%)
+- **VirulenceFinder** (databases: s.aureus_toxin, s.aureus_exoenzyme, s.aureus_hostimm;
+  identity ≥ 90%, coverage ≥ 60%)
+- **Abricate** with VFDB (identity ≥ 80%, coverage ≥ 60%)
 
 This confirms the non-pathogenic nature of S. nepalensis and its distinction from
 pathogenic staphylococci such as *S. aureus*, consistent with its classification as a
@@ -1001,61 +1019,91 @@ coagulase-negative commensal species.
 
 ## Software Versions
 
-| Tool              | Version       | Reference                                |
-| ----------------- | ------------- | ---------------------------------------- |
-| NCBI Datasets CLI | 18.29.1       | NCBI                                     |
-| CheckM2           | 1.1.0         | Chklovski et al. 2023                    |
-| QUAST             | 5.2.0         | Gurevich et al. 2013                     |
-| Bakta             | 1.12.0        | Schwengers et al. 2021                   |
-| FastANI           | 1.34          | Jain et al. 2018                         |
-| Panaroo           | 1.3.4         | Tonkin-Hill et al. 2020                  |
-| Gubbins           | 3.4.2         | Croucher et al. 2015                     |
-| ClonalFrameML     | 1.20          | Didelot & Wilson 2015                    |
-| SNP-sites         | 2.5.1         | Page et al. 2016                         |
-| SNP-dists         | 0.9.0         | Seemann 2018                             |
-| IQ-TREE           | 3.1.2         | Minh et al. 2020                         |
-| AMRFinderPlus     | 4.2.7         | Feldgarden et al. 2021                   |
-| RGI/CARD          | (DB: 3.2.7)   | Alcock et al. 2023                       |
-| PlasmidFinder     | 2.2.0         | Carattoli et al. 2014                    |
-| AlphaFold3        | 3             | Abramson et al. 2024                     |
-| ROTIFER           | v1.0          | https://github.com/leepbioinfo/rotifer   |
-| Pfam              | v35.0         | Mistry et al. 2021                       |
-| VirulenceFinder   | v2.0.1        | Joensen et al. 2014                      |
-| Abricate          | v1.0.1        | Seemann 2020                             |
-| MAFFT             | 7.525         | Katoh & Standley 2013                    |
+| Tool | Version | Reference |
+|---|---|---|
+| NCBI Datasets CLI | 18.29.1 | NCBI |
+| CheckM2 | 1.1.0 | Chklovski et al. 2023 |
+| QUAST | 5.2.0 | Gurevich et al. 2013 |
+| Bakta | 1.12.0 | Schwengers et al. 2021 |
+| FastANI | 1.34 | Jain et al. 2018 |
+| Panaroo | 1.3.4 | Tonkin-Hill et al. 2020 |
+| Gubbins | 3.4.2 | Croucher et al. 2015 |
+| ClonalFrameML | 1.20 | Didelot & Wilson 2015 |
+| SNP-sites | 2.5.1 | Page et al. 2016 |
+| SNP-dists | 0.9.0 | Seemann 2018 |
+| IQ-TREE | 3.1.2 | Minh et al. 2020 |
+| AMRFinderPlus | 4.2.7 | Feldgarden et al. 2021 |
+| RGI/CARD | - (DB: 3.2.7) | Alcock et al. 2023 |
+| PlasmidFinder | 2.2.0 | Carattoli et al. 2014 |
+| ROTIFER | 1.0 | https://github.com/leepbioinfo/rotifer |
+| Pfam | v35.0 | Mistry et al. 2021 |
+| VirulenceFinder | 2.0.1 | Joensen et al. 2014 |
+| Abricate | latest | Seemann 2020 |
+| MAFFT | 7.525 | Katoh & Standley 2013 |
+| AlphaFold3 | web server | Abramson et al. 2024 |
 
 ---
 
 ## References
 
-- Abramson et al. (2024) AlphaFold3. Nature
-- Alcock et al. (2023) CARD 2023. Nucleic Acids Research
-- Carattoli et al. (2014) PlasmidFinder. Antimicrobial Agents and Chemotherapy
-- Chklovski et al. (2023) CheckM2. Nature Methods
-- Croucher et al. (2015) Gubbins. Nucleic Acids Research
-- Didelot & Wilson (2015) ClonalFrameML. PLoS Computational Biology
-- Feldgarden et al. (2021) AMRFinderPlus. Scientific Reports
-- Gurevich et al. (2013) QUAST. Bioinformatics
-- Jain et al. (2018) FastANI. Nature Communications
-- Joensen et al. (2014) VirulenceFinder. Journal of Clinical Microbiology
-- Katoh & Standley (2013) MAFFT. Molecular Biology and Evolution
-- Minh et al. (2020) IQ-TREE 2. Molecular Biology and Evolution
-- Mistry et al. (2021) Pfam. Nucleic Acids Research
-- Page et al. (2016) SNP-sites. Microbial Genomics
-- Schwengers et al. (2021) Bakta. Microbial Genomics
-- Tonkin-Hill et al. (2020) Panaroo. Genome Biology
+- Abramson et al. (2024) Accurate structure prediction of biomolecular interactions with AlphaFold3. Nature
+- Alcock et al. (2023) CARD 2023: Expanded antibiotic resistance gene database. Nucleic Acids Research
+- Carattoli et al. (2014) PlasmidFinder and pMLST: in silico detection and typing of plasmids. Antimicrobial Agents and Chemotherapy
+- Chklovski et al. (2023) CheckM2: A rapid, scalable and accurate assessment of microbial genome quality using machine learning. Nature Methods
+- Croucher et al. (2015) Rapid phylogenetic analysis of large samples of recombinant bacterial whole genome sequences using Gubbins. Nucleic Acids Research
+- Didelot & Wilson (2015) ClonalFrameML: efficient inference of recombination in whole bacterial genomes. PLoS Computational Biology
+- Feldgarden et al. (2021) AMRFinderPlus: a database and bioinformatics pipeline for antibiotic resistance determinants. Journal of Antimicrobial Chemotherapy
+- Gurevich et al. (2013) QUAST: quality assessment tool for genome assemblies. Bioinformatics
+- Jain et al. (2018) High-throughput ANI analysis of 90K prokaryotic genomes reveals sharp species boundaries. Nature Communications
+- Joensen et al. (2014) Real-time whole-genome sequencing for routine typing, surveillance, and outbreak detection of verotoxigenic Escherichia coli. Journal of Clinical Microbiology
+- Katoh & Standley (2013) MAFFT multiple sequence alignment software version 7: improvements in performance and usability. Molecular Biology and Evolution
+- Minh et al. (2020) IQ-TREE 2: new models and efficient methods for phylogenetic inference in the genomic era. Molecular Biology and Evolution
+- Mistry et al. (2021) Pfam: the protein families database in 2021. Nucleic Acids Research
+- Page et al. (2016) SNP-sites: rapid efficient extraction of SNPs from multi-FASTA alignments. Microbial Genomics
+- Schwengers et al. (2021) Bakta: rapid and standardized annotation of bacterial genomes via long-read sequencing. Microbial Genomics
+- Seemann (2020) Abricate: mass screening of contigs for antimicrobial and virulence genes. https://github.com/tseemann/abricate
+- Tonkin-Hill et al. (2020) Producing polished prokaryotic pangenomes with the Panaroo pipeline. Genome Biology
 
 ---
 
 ## Citation
 
-If you use this pipeline please cite:
+If you use this pipeline, please cite:
 
-> Becerra et al. (2026). Phylogeographic analysis of *Staphylococcus nepalensis* reveals global occurrence of antimicrobial-resistant lineages carrying the intrinsic sal(E) resistance gene.
+> Becerra et al. (2026). Phylogeographic analysis of Staphylococcus nepalensis reveals global occurrence of antimicrobial-resistant lineages carrying the intrinsic sal(E) resistance gene. [Journal name and volume to be added]
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**Bakta DIAMOND segfault (Python 3.13 + Bakta 1.12.0)**
+- **Solution 1**: Use `--skip-sorf` flag (already included in Step 7)
+- **Solution 2**: Downgrade to Python 3.12 in the bakta environment
+- **Solution 3**: Upgrade to Bakta v1.13.0+ (recommended for new installations)
+
+**Database path errors**
+- Ensure conda environments have correct `--setdblocation` paths
+- Verify database files exist: `ls /databases/bakta_db/db`, `ls /databases/CheckM2_database/`
+- For custom paths, update paths in all scripts before running
+
+**Memory issues with Panaroo or Gubbins**
+- Reduce thread count (`-t`) parameter
+- Process genomes in smaller batches if necessary
+- Ensure adequate disk space for temporary files (>50GB recommended)
+
+### Contact & Support
+
+For pipeline-specific issues, see `scripts/` directory for helper scripts.
+For tool-specific help, consult official documentation:
+- Bakta: https://github.com/oschwengers/bakta
+- Panaroo: https://github.com/gtonkinhill/panaroo
+- Gubbins: https://github.com/sanger-pathogens/gubbins
+- IQ-TREE: http://www.iqtree.org/
 
 ---
 
 ## License
 
 MIT License
-
